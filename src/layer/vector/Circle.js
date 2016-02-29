@@ -5,10 +5,13 @@
 
 L.Circle = L.CircleMarker.extend({
 
-	initialize: function (latlng, radius, options) {
+	initialize: function (latlng, options) {
 		L.setOptions(this, options);
 		this._latlng = L.latLng(latlng);
-		this._mRadius = radius;
+
+		if (isNaN(this.options.radius)) { throw new Error('Circle radius cannot be NaN'); }
+
+		this._mRadius = this.options.radius;
 	},
 
 	setRadius: function (radius) {
@@ -21,7 +24,7 @@ L.Circle = L.CircleMarker.extend({
 	},
 
 	getBounds: function () {
-		var half = [this._radius, this._radiusY];
+		var half = [this._radius, this._radiusY || this._radius];
 
 		return new L.LatLngBounds(
 			this._map.layerPointToLatLng(this._point.subtract(half)),
@@ -47,6 +50,10 @@ L.Circle = L.CircleMarker.extend({
 			    lngR = Math.acos((Math.cos(latR * d) - Math.sin(lat * d) * Math.sin(lat2 * d)) /
 			            (Math.cos(lat * d) * Math.cos(lat2 * d))) / d;
 
+			if (isNaN(lngR) || lngR === 0) {
+				lngR = latR / Math.cos(Math.PI / 180 * lat); // Fallback for edge case, #2425
+			}
+
 			this._point = p.subtract(map.getPixelOrigin());
 			this._radius = isNaN(lngR) ? 0 : Math.max(Math.round(p.x - map.project([lat2, lng - lngR]).x), 1);
 			this._radiusY = Math.max(Math.round(p.y - top.y), 1);
@@ -62,6 +69,10 @@ L.Circle = L.CircleMarker.extend({
 	}
 });
 
-L.circle = function (latlng, radius, options) {
-	return new L.Circle(latlng, radius, options);
+L.circle = function (latlng, options, legacyOptions) {
+	if (typeof options === 'number') {
+		// Backwards compatibility with 0.7.x factory (latlng, radius, options?)
+		options = L.extend({}, legacyOptions, {radius: options});
+	}
+	return new L.Circle(latlng, options);
 };

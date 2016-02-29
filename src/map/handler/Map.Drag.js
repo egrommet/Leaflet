@@ -8,8 +8,7 @@ L.Map.mergeOptions({
 	inertia: !L.Browser.android23,
 	inertiaDeceleration: 3400, // px/s^2
 	inertiaMaxSpeed: Infinity, // px/s
-	inertiaThreshold: L.Browser.touch ? 32 : 18, // ms
-	easeLinearity: 0.25,
+	easeLinearity: 0.2,
 
 	// TODO refactor, move to CRS
 	worldCopyJump: false
@@ -29,17 +28,20 @@ L.Map.Drag = L.Handler.extend({
 				dragend: this._onDragEnd
 			}, this);
 
+			this._draggable.on('predrag', this._onPreDragLimit, this);
 			if (map.options.worldCopyJump) {
-				this._draggable.on('predrag', this._onPreDrag, this);
-				map.on('viewreset', this._onViewReset, this);
+				this._draggable.on('predrag', this._onPreDragWrap, this);
+				map.on('zoomend', this._onZoomEnd, this);
 
-				map.whenReady(this._onViewReset, this);
+				map.whenReady(this._onZoomEnd, this);
 			}
 		}
+		L.DomUtil.addClass(this._map._container, 'leaflet-grab');
 		this._draggable.enable();
 	},
 
 	removeHooks: function () {
+		L.DomUtil.removeClass(this._map._container, 'leaflet-grab');
 		this._draggable.disable();
 	},
 
@@ -47,14 +49,29 @@ L.Map.Drag = L.Handler.extend({
 		return this._draggable && this._draggable._moved;
 	},
 
+	moving: function () {
+		return this._draggable && this._draggable._moving;
+	},
+
 	_onDown: function () {
-		if (this._map._panAnim) {
-			this._map._panAnim.stop();
-		}
+		this._map._stop();
 	},
 
 	_onDragStart: function () {
 		var map = this._map;
+
+		if (this._map.options.maxBounds && this._map.options.maxBoundsViscosity) {
+			var bounds = L.latLngBounds(this._map.options.maxBounds);
+
+			this._offsetLimit = L.bounds(
+				this._map.latLngToContainerPoint(bounds.getNorthWest()).multiplyBy(-1),
+				this._map.latLngToContainerPoint(bounds.getSouthEast()).multiplyBy(-1)
+					.add(this._map.getSize()));
+
+			this._viscosity = Math.min(1.0, Math.max(0.0, this._map.options.maxBoundsViscosity));
+		} else {
+			this._offsetLimit = null;
+		}
 
 		map
 		    .fire('movestart')
@@ -66,26 +83,26 @@ L.Map.Drag = L.Handler.extend({
 		}
 	},
 
-	_onDrag: function () {
+	_onDrag: function (e) {
 		if (this._map.options.inertia) {
 			var time = this._lastTime = +new Date(),
-			    pos = this._lastPos = this._draggable._newPos;
+			    pos = this._lastPos = this._draggable._absPos || this._draggable._newPos;
 
 			this._positions.push(pos);
 			this._times.push(time);
 
-			if (time - this._times[0] > 200) {
+			if (time - this._times[0] > 50) {
 				this._positions.shift();
 				this._times.shift();
 			}
 		}
 
 		this._map
-		    .fire('move')
-		    .fire('drag');
+		    .fire('move', e)
+		    .fire('drag', e);
 	},
 
-	_onViewReset: function () {
+	_onZoomEnd: function () {
 		var pxCenter = this._map.getSize().divideBy(2),
 		    pxWorldCenter = this._map.latLngToLayerPoint([0, 0]);
 
@@ -93,7 +110,25 @@ L.Map.Drag = L.Handler.extend({
 		this._worldWidth = this._map.getPixelWorldBounds().getSize().x;
 	},
 
-	_onPreDrag: function () {
+	_viscousLimit: function (value, threshold) {
+		return value - (value - threshold) * this._viscosity;
+	},
+
+	_onPreDragLimit: function () {
+		if (!this._viscosity || !this._offsetLimit) { return; }
+
+		var offset = this._draggable._newPos.subtract(this._draggable._startPos);
+
+		var limit = this._offsetLimit;
+		if (offset.x < limit.min.x) { offset.x = this._viscousLimit(offset.x, limit.min.x); }
+		if (offset.y < limit.min.y) { offset.y = this._viscousLimit(offset.y, limit.min.y); }
+		if (offset.x > limit.max.x) { offset.x = this._viscousLimit(offset.x, limit.max.x); }
+		if (offset.y > limit.max.y) { offset.y = this._viscousLimit(offset.y, limit.max.y); }
+
+		this._draggable._newPos = this._draggable._startPos.add(offset);
+	},
+
+	_onPreDragWrap: function () {
 		// TODO refactor to be able to adjust map pane position after zoom
 		var worldWidth = this._worldWidth,
 		    halfWidth = Math.round(worldWidth / 2),
@@ -103,15 +138,15 @@ L.Map.Drag = L.Handler.extend({
 		    newX2 = (x + halfWidth + dx) % worldWidth - halfWidth - dx,
 		    newX = Math.abs(newX1 + dx) < Math.abs(newX2 + dx) ? newX1 : newX2;
 
+		this._draggable._absPos = this._draggable._newPos.clone();
 		this._draggable._newPos.x = newX;
 	},
 
 	_onDragEnd: function (e) {
 		var map = this._map,
 		    options = map.options,
-		    delay = +new Date() - this._lastTime,
 
-		    noInertia = !options.inertia || delay > options.inertiaThreshold || !this._positions[0];
+		    noInertia = !options.inertia || this._times.length < 2;
 
 		map.fire('dragend', e);
 
@@ -121,7 +156,7 @@ L.Map.Drag = L.Handler.extend({
 		} else {
 
 			var direction = this._lastPos.subtract(this._positions[0]),
-			    duration = (this._lastTime + delay - this._times[0]) / 1000,
+			    duration = (this._lastTime - this._times[0]) / 1000,
 			    ease = options.easeLinearity,
 
 			    speedVector = direction.multiplyBy(ease / duration),
@@ -133,7 +168,7 @@ L.Map.Drag = L.Handler.extend({
 			    decelerationDuration = limitedSpeed / (options.inertiaDeceleration * ease),
 			    offset = limitedSpeedVector.multiplyBy(-decelerationDuration / 2).round();
 
-			if (!offset.x || !offset.y) {
+			if (!offset.x && !offset.y) {
 				map.fire('moveend');
 
 			} else {
@@ -143,7 +178,8 @@ L.Map.Drag = L.Handler.extend({
 					map.panBy(offset, {
 						duration: decelerationDuration,
 						easeLinearity: ease,
-						noMoveStart: true
+						noMoveStart: true,
+						animate: true
 					});
 				});
 			}

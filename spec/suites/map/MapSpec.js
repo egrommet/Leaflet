@@ -1,6 +1,6 @@
 describe("Map", function () {
 	var map,
-		spy;
+	    spy;
 	beforeEach(function () {
 		map = L.map(document.createElement('div'));
 	});
@@ -9,7 +9,7 @@ describe("Map", function () {
 		it("fires an unload event if loaded", function () {
 			var container = document.createElement('div'),
 			    map = new L.Map(container).setView([0, 0], 0),
-				spy = sinon.spy();
+			    spy = sinon.spy();
 			map.on('unload', spy);
 			map.remove();
 			expect(spy.called).to.be.ok();
@@ -18,7 +18,7 @@ describe("Map", function () {
 		it("fires no unload event if not loaded", function () {
 			var container = document.createElement('div'),
 			    map = new L.Map(container),
-				spy = sinon.spy();
+			    spy = sinon.spy();
 			map.on('unload', spy);
 			map.remove();
 			expect(spy.called).not.to.be.ok();
@@ -27,7 +27,7 @@ describe("Map", function () {
 		describe("corner case checking", function () {
 			it("throws an exception upon reinitialization", function () {
 				var container = document.createElement('div'),
-					map = new L.Map(container);
+				    map = new L.Map(container);
 				expect(function () {
 					L.map(container);
 				}).to.throwException(function (e) {
@@ -56,7 +56,7 @@ describe("Map", function () {
 		it("unbinds events", function () {
 			var container = document.createElement('div'),
 			    map = new L.Map(container).setView([0, 0], 1),
-				spy = sinon.spy();
+			    spy = sinon.spy();
 
 			map.on('click dblclick mousedown mouseup mousemove', spy);
 			map.remove();
@@ -121,11 +121,34 @@ describe("Map", function () {
 			expect(map.getZoom()).to.be(13);
 			expect(map.getCenter().distanceTo([51.505, -0.09])).to.be.lessThan(5);
 		});
+
 		it("can be passed without a zoom specified", function () {
 			map.setZoom(13);
 			expect(map.setView([51.605, -0.11])).to.be(map);
 			expect(map.getZoom()).to.be(13);
 			expect(map.getCenter().distanceTo([51.605, -0.11])).to.be.lessThan(5);
+		});
+
+		it("limits initial zoom when no zoom specified", function () {
+			map.options.maxZoom = 20;
+			map.setZoom(100);
+			expect(map.setView([51.605, -0.11])).to.be(map);
+			expect(map.getZoom()).to.be(20);
+			expect(map.getCenter().distanceTo([51.605, -0.11])).to.be.lessThan(5);
+		});
+
+		it("defaults to zoom passed as map option", function () {
+			map = L.map(document.createElement('div'), {zoom: 13});
+			expect(map.setView([51.605, -0.11])).to.be(map);
+			expect(map.getZoom()).to.be(13);
+		});
+
+		it("passes duration option to panBy", function () {
+			map = L.map(document.createElement('div'), {zoom: 13, center: [0, 0]});
+			map.panBy = sinon.spy();
+			map.setView([51.605, -0.11], 13, {animate: true, duration: 13});
+			expect(map.panBy.callCount).to.eql(1);
+			expect(map.panBy.args[0][1].duration).to.eql(13);
 		});
 	});
 
@@ -175,6 +198,27 @@ describe("Map", function () {
 			// the view is inside the bounds
 			expect(bounds.contains(map.getBounds())).to.be(true);
 			document.body.removeChild(container);
+		});
+	});
+
+	describe("#getMinZoom and #getMaxZoom", function () {
+		describe('#getMinZoom', function () {
+			it('returns 0 if not set by Map options or TileLayer options', function () {
+				var map = L.map(document.createElement('div'));
+				expect(map.getMinZoom()).to.be(0);
+			});
+		});
+
+		it("minZoom and maxZoom options overrides any minZoom and maxZoom set on layers", function () {
+
+			var map = L.map(document.createElement('div'), {minZoom: 2, maxZoom: 20});
+
+			L.tileLayer("{z}{x}{y}", {minZoom: 4, maxZoom: 10}).addTo(map);
+			L.tileLayer("{z}{x}{y}", {minZoom: 6, maxZoom: 17}).addTo(map);
+			L.tileLayer("{z}{x}{y}", {minZoom: 0, maxZoom: 22}).addTo(map);
+
+			expect(map.getMinZoom()).to.be(2);
+			expect(map.getMaxZoom()).to.be(20);
 		});
 	});
 
@@ -384,7 +428,7 @@ describe("Map", function () {
 
 		it("supports adding and removing a tile layer without initializing the map", function () {
 			map.setView([0, 0], 18);
-			var layer = L.tileLayer("{z}{x}{y}");
+			var layer = L.gridLayer();
 			map.addLayer(layer);
 			map.removeLayer(layer);
 		});
@@ -407,7 +451,7 @@ describe("Map", function () {
 			it("fires a zoomlevelschange event", function () {
 				map.whenReady(function () {
 					var spy = sinon.spy(),
-						tl = L.tileLayer("{z}{x}{y}", {minZoom: 0, maxZoom: 10}).addTo(map),
+					    tl = L.tileLayer("{z}{x}{y}", {minZoom: 0, maxZoom: 10}).addTo(map),
 					    t2 = L.tileLayer("{z}{x}{y}", {minZoom: 0, maxZoom: 15}).addTo(map);
 
 					map.on("zoomlevelschange", spy);
@@ -444,7 +488,7 @@ describe("Map", function () {
 		it("calls the provided function for each layer", function () {
 			var t1 = L.tileLayer("{z}{x}{y}").addTo(map),
 			    t2 = L.tileLayer("{z}{x}{y}").addTo(map),
-				spy = sinon.spy();
+			    spy = sinon.spy();
 
 			map.eachLayer(spy);
 
@@ -455,7 +499,7 @@ describe("Map", function () {
 
 		it("calls the provided function with the provided context", function () {
 			var t1 = L.tileLayer("{z}{x}{y}").addTo(map),
-				spy = sinon.spy();
+			    spy = sinon.spy();
 
 			map.eachLayer(spy, map);
 
@@ -466,7 +510,7 @@ describe("Map", function () {
 	describe("#invalidateSize", function () {
 		var container,
 		    origWidth = 100,
-			clock;
+		    clock;
 
 		beforeEach(function () {
 			container = map.getContainer();
@@ -561,6 +605,374 @@ describe("Map", function () {
 			clock.tick(200);
 
 			expect(spy.called).to.be.ok();
+		});
+	});
+
+	describe('#flyTo', function () {
+
+		it('move to requested center and zoom, and call zoomend once', function (done) {
+			var spy = sinon.spy(),
+			    newCenter = new L.LatLng(10, 11),
+			    newZoom = 12;
+			var callback = function () {
+				expect(map.getCenter()).to.eql(newCenter);
+				expect(map.getZoom()).to.eql(newZoom);
+				spy();
+				expect(spy.calledOnce).to.be.ok();
+				done();
+			};
+			map.setView([0, 0], 0);
+			map.once('zoomend', callback).flyTo(newCenter, newZoom);
+		});
+	});
+
+	describe('#zoomIn and #zoomOut', function () {
+		var center = L.latLng(22, 33);
+		beforeEach(function () {
+			map.setView(center, 10);
+		});
+
+		it('zoomIn zooms by 1 zoom level by default', function (done) {
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(11);
+				expect(map.getCenter()).to.eql(center);
+				done();
+			});
+			map.zoomIn(null, {animate: false});
+		});
+
+		it('zoomOut zooms by 1 zoom level by default', function (done) {
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(9);
+				expect(map.getCenter()).to.eql(center);
+				done();
+			});
+			map.zoomOut(null, {animate: false});
+		});
+
+		it('zoomIn ignores the zoomDelta option on non-any3d browsers', function (done) {
+			L.Browser.any3d = false;
+			map.options.zoomSnap = 0.25;
+			map.options.zoomDelta = 0.25;
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(11);
+				expect(map.getCenter()).to.eql(center);
+				done();
+			});
+			map.zoomIn(null, {animate: false});
+		});
+
+		it('zoomIn respects the zoomDelta option on any3d browsers', function (done) {
+			L.Browser.any3d = true;
+			map.options.zoomSnap = 0.25;
+			map.options.zoomDelta = 0.25;
+			map.setView(center, 10);
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(10.25);
+				expect(map.getCenter()).to.eql(center);
+				done();
+			});
+			map.zoomIn(null, {animate: false});
+		});
+
+		it('zoomOut respects the zoomDelta option on any3d browsers', function (done) {
+			L.Browser.any3d = true;
+			map.options.zoomSnap = 0.25;
+			map.options.zoomDelta = 0.25;
+			map.setView(center, 10);
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(9.75);
+				expect(map.getCenter()).to.eql(center);
+				done();
+			});
+			map.zoomOut(null, {animate: false});
+		});
+
+		it('zoomIn snaps to zoomSnap on any3d browsers', function (done) {
+			map.options.zoomSnap = 0.25;
+			map.setView(center, 10);
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(10.25);
+				expect(map.getCenter()).to.eql(center);
+				done();
+			});
+			L.Browser.any3d = true;
+			map.zoomIn(0.22, {animate: false});
+		});
+
+		it('zoomOut snaps to zoomSnap on any3d browsers', function (done) {
+			map.options.zoomSnap = 0.25;
+			map.setView(center, 10);
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(9.75);
+				expect(map.getCenter()).to.eql(center);
+				done();
+			});
+			L.Browser.any3d = true;
+			map.zoomOut(0.22, {animate: false});
+		});
+	});
+
+	describe('#fitBounds', function () {
+		var center = L.latLng(22, 33),
+		    bounds = L.latLngBounds(L.latLng(1, 102), L.latLng(11, 122)),
+		    boundsCenter = bounds.getCenter();
+
+		beforeEach(function () {
+			// fitBounds needs a map container with non-null area
+			var container = map.getContainer();
+			container.style.width = container.style.height = "100px";
+			document.body.appendChild(container);
+			map.setView(center, 10);
+		});
+
+		afterEach(function () {
+			document.body.removeChild(map.getContainer());
+		});
+
+		it('Snaps zoom level to integer by default', function (done) {
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(2);
+				expect(map.getCenter().equals(boundsCenter, 0.05)).to.eql(true);
+				done();
+			});
+			map.fitBounds(bounds, {animate: false});
+		});
+
+		it('Snaps zoom to zoomSnap on any3d browsers', function (done) {
+			map.options.zoomSnap = 0.25;
+			L.Browser.any3d = true;
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(2.75);
+				expect(map.getCenter().equals(boundsCenter, 0.05)).to.eql(true);
+				done();
+			});
+			map.fitBounds(bounds, {animate: false});
+		});
+
+		it('Ignores zoomSnap on non-any3d browsers', function (done) {
+			map.options.zoomSnap = 0.25;
+			L.Browser.any3d = false;
+			map.once('zoomend', function () {
+				expect(map.getZoom()).to.eql(2);
+				expect(map.getCenter().equals(boundsCenter, 0.05)).to.eql(true);
+				done();
+			});
+			map.fitBounds(bounds, {animate: false});
+		});
+
+	});
+
+
+	describe('#fitBounds after layers set', function () {
+		var center = L.latLng(22, 33),
+		    bounds = L.latLngBounds(L.latLng(1, 102), L.latLng(11, 122)),
+		    boundsCenter = bounds.getCenter();
+
+		beforeEach(function () {
+			// fitBounds needs a map container with non-null area
+			var container = map.getContainer();
+			container.style.width = container.style.height = "100px";
+			document.body.appendChild(container);
+		});
+
+		afterEach(function () {
+			document.body.removeChild(map.getContainer());
+		});
+
+		it('Snaps to a number after adding tile layer', function (done) {
+			L.Browser.any3d = true;
+			map.addLayer(L.tileLayer('file:///dev/null'));
+			expect(map.getZoom()).to.be(undefined);
+			map.fitBounds(bounds);
+			expect(map.getZoom()).to.be(2);
+			done();
+		});
+
+		it('Snaps to a number after adding marker', function (done) {
+			L.Browser.any3d = true;
+			map.addLayer(L.marker(center));
+			expect(map.getZoom()).to.be(undefined);
+			map.fitBounds(bounds);
+			expect(map.getZoom()).to.be(2);
+			done();
+		});
+
+	});
+
+	describe('#DOM events', function () {
+
+		var c, map;
+
+		beforeEach(function () {
+			c = document.createElement('div');
+			c.style.width = '400px';
+			c.style.height = '400px';
+			map = new L.Map(c);
+			map.setView(new L.LatLng(0, 0), 0);
+			document.body.appendChild(c);
+		});
+
+		afterEach(function () {
+			document.body.removeChild(c);
+		});
+
+		it("DOM events propagate from polygon to map", function () {
+			var spy = sinon.spy();
+			map.on("mousemove", spy);
+			var layer = new L.Polygon([[1, 2], [3, 4], [5, 6]]).addTo(map);
+			happen.mousemove(layer._path);
+			expect(spy.calledOnce).to.be.ok();
+		});
+
+		it("DOM events propagate from marker to map", function () {
+			var spy = sinon.spy();
+			map.on("mousemove", spy);
+			var layer = new L.Marker([1, 2]).addTo(map);
+			happen.mousemove(layer._icon);
+			expect(spy.calledOnce).to.be.ok();
+		});
+
+		it("DOM events fired on marker can be cancelled before being caught by the map", function () {
+			var mapSpy = sinon.spy();
+			var layerSpy = sinon.spy();
+			map.on("mousemove", mapSpy);
+			var layer = new L.Marker([1, 2]).addTo(map);
+			layer.on("mousemove", L.DomEvent.stopPropagation).on("mousemove", layerSpy);
+			happen.mousemove(layer._icon);
+			expect(layerSpy.calledOnce).to.be.ok();
+			expect(mapSpy.called).not.to.be.ok();
+		});
+
+		it("DOM events fired on polygon can be cancelled before being caught by the map", function () {
+			var mapSpy = sinon.spy();
+			var layerSpy = sinon.spy();
+			map.on("mousemove", mapSpy);
+			var layer = new L.Polygon([[1, 2], [3, 4], [5, 6]]).addTo(map);
+			layer.on("mousemove", L.DomEvent.stopPropagation).on("mousemove", layerSpy);
+			happen.mousemove(layer._path);
+			expect(layerSpy.calledOnce).to.be.ok();
+			expect(mapSpy.called).not.to.be.ok();
+		});
+
+		it("mouseout is forwarded if fired on the original target", function () {
+			var mapSpy = sinon.spy(),
+			    layerSpy = sinon.spy(),
+			    otherSpy = sinon.spy();
+			var layer = new L.Polygon([[1, 2], [3, 4], [5, 6]]).addTo(map);
+			var other = new L.Polygon([[10, 20], [30, 40], [50, 60]]).addTo(map);
+			map.on("mouseout", mapSpy);
+			layer.on("mouseout", layerSpy);
+			other.on("mouseout", otherSpy);
+			happen.mouseout(layer._path, {relatedTarget: map._container});
+			expect(mapSpy.called).not.to.be.ok();
+			expect(otherSpy.called).not.to.be.ok();
+			expect(layerSpy.calledOnce).to.be.ok();
+		});
+
+		it("mouseout is forwarded when using a DivIcon", function () {
+			var icon = L.divIcon({
+				html: "<p>this is text in a child element</p>",
+				iconSize: [100, 100]
+			});
+			var mapSpy = sinon.spy(),
+			    layerSpy = sinon.spy(),
+			    layer = L.marker([1, 2], {icon: icon}).addTo(map);
+			map.on("mouseout", mapSpy);
+			layer.on("mouseout", layerSpy);
+			happen.mouseout(layer._icon, {relatedTarget: map._container});
+			expect(mapSpy.called).not.to.be.ok();
+			expect(layerSpy.calledOnce).to.be.ok();
+		});
+
+		it("mouseout is not forwarded if relatedTarget is a target's child", function () {
+			var icon = L.divIcon({
+				html: "<p>this is text in a child element</p>",
+				iconSize: [100, 100]
+			});
+			var mapSpy = sinon.spy(),
+			    layerSpy = sinon.spy(),
+			    layer = L.marker([1, 2], {icon: icon}).addTo(map),
+			    child = layer._icon.querySelector('p');
+			map.on("mouseout", mapSpy);
+			layer.on("mouseout", layerSpy);
+			happen.mouseout(layer._icon, {relatedTarget: child});
+			expect(mapSpy.called).not.to.be.ok();
+			expect(layerSpy.calledOnce).not.to.be.ok();
+		});
+
+		it("mouseout is not forwarded if fired on target's child", function () {
+			var icon = L.divIcon({
+				html: "<p>this is text in a child element</p>",
+				iconSize: [100, 100]
+			});
+			var mapSpy = sinon.spy(),
+			    layerSpy = sinon.spy(),
+			    layer = L.marker([1, 2], {icon: icon}).addTo(map),
+			    child = layer._icon.querySelector('p');
+			map.on("mouseout", mapSpy);
+			layer.on("mouseout", layerSpy);
+			happen.mouseout(child, {relatedTarget: layer._icon});
+			expect(mapSpy.called).not.to.be.ok();
+			expect(layerSpy.calledOnce).not.to.be.ok();
+		});
+
+		it("mouseout is not forwarded to layers if fired on the map", function () {
+			var mapSpy = sinon.spy(),
+			    layerSpy = sinon.spy(),
+			    otherSpy = sinon.spy();
+			var layer = new L.Polygon([[1, 2], [3, 4], [5, 6]]).addTo(map);
+			var other = new L.Polygon([[10, 20], [30, 40], [50, 60]]).addTo(map);
+			map.on("mouseout", mapSpy);
+			layer.on("mouseout", layerSpy);
+			other.on("mouseout", otherSpy);
+			happen.mouseout(map._container);
+			expect(otherSpy.called).not.to.be.ok();
+			expect(layerSpy.called).not.to.be.ok();
+			expect(mapSpy.calledOnce).to.be.ok();
+		});
+
+		it("preclick is fired before click on marker and map", function () {
+			var called = 0;
+			var layer = new L.Marker([1, 2]).addTo(map);
+			layer.on("preclick", function (e) {
+				expect(called++).to.eql(0);
+				expect(e.latlng).to.ok();
+			});
+			layer.on("click", function (e) {
+				expect(called++).to.eql(2);
+				expect(e.latlng).to.ok();
+			});
+			map.on("preclick", function (e) {
+				expect(called++).to.eql(1);
+				expect(e.latlng).to.ok();
+			});
+			map.on("click", function (e) {
+				expect(called++).to.eql(3);
+				expect(e.latlng).to.ok();
+			});
+			happen.click(layer._icon);
+		});
+
+	});
+
+	describe('#getScaleZoom && #getZoomScale', function () {
+		it("convert zoom to scale and viceversa and return the same values", function () {
+			var toZoom = 6.25;
+			var fromZoom = 8.5;
+			var scale = map.getScaleZoom(toZoom, fromZoom);
+			expect(Math.round(map.getZoomScale(scale, fromZoom) * 100) / 100).to.eql(toZoom);
+		});
+	});
+
+	describe('#getZoom', function () {
+		it("returns undefined if map not initialized", function () {
+			expect(map.getZoom()).to.be(undefined);
+		});
+
+		it("returns undefined if map not initialized but layers added", function () {
+			map.addLayer(L.tileLayer('file:///dev/null'));
+			expect(map.getZoom()).to.be(undefined);
 		});
 	});
 });

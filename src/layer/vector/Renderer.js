@@ -8,7 +8,7 @@ L.Renderer = L.Layer.extend({
 	options: {
 		// how much to extend the clip area around the map view (relative to its size)
 		// e.g. 0.1 would be 10% of map view in each direction; defaults to clip with the map view
-		padding: 0
+		padding: 0.1
 	},
 
 	initialize: function (options) {
@@ -35,19 +35,44 @@ L.Renderer = L.Layer.extend({
 
 	getEvents: function () {
 		var events = {
+			viewreset: this._reset,
+			zoom: this._onZoom,
 			moveend: this._update
 		};
 		if (this._zoomAnimated) {
-			events.zoomanim = this._animateZoom;
+			events.zoomanim = this._onAnimZoom;
 		}
 		return events;
 	},
 
-	_animateZoom: function (e) {
-		var origin = e.origin.subtract(this._map._getCenterLayerPoint()),
-		    offset = this._bounds.min.add(origin.multiplyBy(1 - e.scale));
+	_onAnimZoom: function (ev) {
+		this._updateTransform(ev.center, ev.zoom);
+	},
 
-		L.DomUtil.setTransform(this._container, offset, e.scale);
+	_onZoom: function () {
+		this._updateTransform(this._map.getCenter(), this._map.getZoom());
+	},
+
+	_updateTransform: function (center, zoom) {
+		var scale = this._map.getZoomScale(zoom, this._zoom),
+		    position = L.DomUtil.getPosition(this._container),
+		    viewHalf = this._map.getSize().multiplyBy(0.5 + this.options.padding),
+		    currentCenterPoint = this._map.project(this._center, zoom),
+		    destCenterPoint = this._map.project(center, zoom),
+		    centerOffset = destCenterPoint.subtract(currentCenterPoint),
+
+		    topLeftOffset = viewHalf.multiplyBy(-scale).add(position).add(viewHalf).subtract(centerOffset);
+
+		if (L.Browser.any3d) {
+			L.DomUtil.setTransform(this._container, topLeftOffset, scale);
+		} else {
+			L.DomUtil.setPosition(this._container, topLeftOffset);
+		}
+	},
+
+	_reset: function () {
+		this._update();
+		this._updateTransform(this._center, this._zoom);
 	},
 
 	_update: function () {
@@ -57,6 +82,9 @@ L.Renderer = L.Layer.extend({
 		    min = this._map.containerPointToLayerPoint(size.multiplyBy(-p)).round();
 
 		this._bounds = new L.Bounds(min, min.add(size.multiplyBy(1 + p * 2)).round());
+
+		this._center = this._map.getCenter();
+		this._zoom = this._map.getZoom();
 	}
 });
 
@@ -64,14 +92,27 @@ L.Renderer = L.Layer.extend({
 L.Map.include({
 	// used by each vector layer to decide which renderer to use
 	getRenderer: function (layer) {
-		var renderer = layer.options.renderer || this.options.renderer || this._renderer;
+		var renderer = layer.options.renderer || this._getPaneRenderer(layer.options.pane) || this.options.renderer || this._renderer;
 
 		if (!renderer) {
-			renderer = this._renderer = (L.SVG && L.svg()) || (L.Canvas && L.canvas());
+			renderer = this._renderer = (this.options.preferCanvas && L.canvas()) || L.svg();
 		}
 
 		if (!this.hasLayer(renderer)) {
 			this.addLayer(renderer);
+		}
+		return renderer;
+	},
+
+	_getPaneRenderer: function (name) {
+		if (name === 'overlayPane' || name === undefined) {
+			return false;
+		}
+
+		var renderer = this._paneRenderers[name];
+		if (renderer === undefined) {
+			renderer = (L.SVG && L.svg({pane: name})) || (L.Canvas && L.canvas({pane: name}));
+			this._paneRenderers[name] = renderer;
 		}
 		return renderer;
 	}

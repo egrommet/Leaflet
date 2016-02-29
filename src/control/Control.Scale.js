@@ -41,7 +41,7 @@ L.Control.Scale = L.Control.extend({
 		var map = this._map,
 		    y = map.getSize().y / 2;
 
-		var maxMeters = L.CRS.Earth.distance(
+		var maxMeters = map.distance(
 				map.containerPointToLatLng([0, y]),
 				map.containerPointToLatLng([this.options.maxWidth, y]));
 
@@ -80,7 +80,7 @@ L.Control.Scale = L.Control.extend({
 	},
 
 	_updateScale: function (scale, text, ratio) {
-		scale.style.width = (Math.round(this.options.maxWidth * ratio) - 10) + 'px';
+		scale.style.width = Math.round(this.options.maxWidth * ratio) + 'px';
 		scale.innerHTML = text;
 	},
 

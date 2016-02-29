@@ -1,6 +1,6 @@
 
 var L = {
-	version: '0.8-dev'
+	version: '1.0.0-beta.2'
 };
 
 function expose() {
@@ -21,8 +21,9 @@ if (typeof module === 'object' && typeof module.exports === 'object') {
 // define Leaflet as an AMD module
 } else if (typeof define === 'function' && define.amd) {
 	define(L);
+}
 
 // define Leaflet as a global L variable, saving the original L to restore later if needed
-} else {
+if (typeof window !== 'undefined') {
 	expose();
 }

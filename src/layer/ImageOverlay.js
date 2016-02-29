@@ -6,7 +6,12 @@ L.ImageOverlay = L.Layer.extend({
 
 	options: {
 		opacity: 1,
-		alt: ''
+		alt: '',
+		interactive: false
+
+		/*
+		crossOrigin: <Boolean>,
+		*/
 	},
 
 	initialize: function (url, bounds, options) { // (String, LatLngBounds, Object)
@@ -25,13 +30,20 @@ L.ImageOverlay = L.Layer.extend({
 			}
 		}
 
-		this.getPane().appendChild(this._image);
+		if (this.options.interactive) {
+			L.DomUtil.addClass(this._image, 'leaflet-interactive');
+			this.addInteractiveTarget(this._image);
+		}
 
+		this.getPane().appendChild(this._image);
 		this._reset();
 	},
 
 	onRemove: function () {
 		L.DomUtil.remove(this._image);
+		if (this.options.interactive) {
+			this.removeInteractiveTarget(this._image);
+		}
 	},
 
 	setOpacity: function (opacity) {
@@ -39,6 +51,13 @@ L.ImageOverlay = L.Layer.extend({
 
 		if (this._image) {
 			this._updateOpacity();
+		}
+		return this;
+	},
+
+	setStyle: function (styleOpts) {
+		if (styleOpts.opacity) {
+			this.setOpacity(styleOpts.opacity);
 		}
 		return this;
 	},
@@ -66,12 +85,22 @@ L.ImageOverlay = L.Layer.extend({
 		return this;
 	},
 
+	setBounds: function (bounds) {
+		this._bounds = bounds;
+
+		if (this._map) {
+			this._reset();
+		}
+		return this;
+	},
+
 	getAttribution: function () {
 		return this.options.attribution;
 	},
 
 	getEvents: function () {
 		var events = {
+			zoom: this._reset,
 			viewreset: this._reset
 		};
 
@@ -82,6 +111,14 @@ L.ImageOverlay = L.Layer.extend({
 		return events;
 	},
 
+	getBounds: function () {
+		return this._bounds;
+	},
+
+	getElement: function () {
+		return this._image;
+	},
+
 	_initImage: function () {
 		var img = this._image = L.DomUtil.create('img',
 				'leaflet-image-layer ' + (this._zoomAnimated ? 'leaflet-zoom-animated' : ''));
@@ -90,16 +127,20 @@ L.ImageOverlay = L.Layer.extend({
 		img.onmousemove = L.Util.falseFn;
 
 		img.onload = L.bind(this.fire, this, 'load');
+
+		if (this.options.crossOrigin) {
+			img.crossOrigin = '';
+		}
+
 		img.src = this._url;
 		img.alt = this.options.alt;
 	},
 
 	_animateZoom: function (e) {
-		var topLeft = this._map._latLngToNewLayerPoint(this._bounds.getNorthWest(), e.zoom, e.center),
-		    size = this._map._latLngToNewLayerPoint(this._bounds.getSouthEast(), e.zoom, e.center).subtract(topLeft),
-		    offset = topLeft.add(size._multiplyBy((1 - 1 / e.scale) / 2));
+		var scale = this._map.getZoomScale(e.zoom),
+		    offset = this._map._latLngToNewLayerPoint(this._bounds.getNorthWest(), e.zoom, e.center);
 
-		L.DomUtil.setTransform(this._image, offset, e.scale);
+		L.DomUtil.setTransform(this._image, offset, scale);
 	},
 
 	_reset: function () {

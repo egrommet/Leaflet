@@ -2,8 +2,8 @@ describe("Class", function () {
 
 	describe("#extend", function () {
 		var Klass,
-			constructor,
-			method;
+		    constructor,
+		    method;
 
 		beforeEach(function () {
 			constructor = sinon.spy();
@@ -131,7 +131,7 @@ describe("Class", function () {
 
 		it("inherits constructor hooks", function () {
 			var spy1 = sinon.spy(),
-				spy2 = sinon.spy();
+			    spy2 = sinon.spy();
 
 			var Klass2 = Klass.extend({});
 
@@ -146,7 +146,7 @@ describe("Class", function () {
 
 		it("does not call child constructor hooks", function () {
 			var spy1 = sinon.spy(),
-				spy2 = sinon.spy();
+			    spy2 = sinon.spy();
 
 			var Klass2 = Klass.extend({});
 
@@ -158,9 +158,43 @@ describe("Class", function () {
 			expect(spy1.called).to.be.ok();
 			expect(spy2.called).to.eql(false);
 		});
+
+		it("calls parent constructor hooks when child has none", function () {
+			var spy1 = sinon.spy();
+
+			Klass.addInitHook(spy1);
+
+			var Klass2 = Klass.extend({});
+			var a = new Klass2();
+
+			expect(spy1.called).to.be.ok();
+		});
 	});
 
-	// TODO Class.include
+
+	describe("#include", function () {
+		var Klass;
+
+		beforeEach(function () {
+			Klass = L.Class.extend({});
+		});
+
+		it("returns the class with the extra methods", function () {
+
+			var q = sinon.spy();
+
+			var Qlass = Klass.include({quux: q});
+
+			var a = new Klass();
+			var b = new Qlass();
+
+			a.quux();
+			expect(q.called).to.be.ok();
+
+			b.quux();
+			expect(q.called).to.be.ok();
+		});
+	});
 
 	// TODO Class.mergeOptions
 });

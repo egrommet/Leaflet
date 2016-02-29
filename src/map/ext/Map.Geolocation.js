@@ -12,11 +12,11 @@ L.Map.include({
 		// enableHighAccuracy: false
 	},
 
-	locate: function (/*Object*/ options) {
+	locate: function (options) {
 
-		options = this._locateOptions = L.extend(this._defaultLocateOptions, options);
+		options = this._locateOptions = L.extend({}, this._defaultLocateOptions, options);
 
-		if (!navigator.geolocation) {
+		if (!('geolocation' in navigator)) {
 			this._handleGeolocationError({
 				code: 0,
 				message: 'Geolocation not supported.'
@@ -25,7 +25,7 @@ L.Map.include({
 		}
 
 		var onResponse = L.bind(this._handleGeolocationResponse, this),
-			onError = L.bind(this._handleGeolocationError, this);
+		    onError = L.bind(this._handleGeolocationError, this);
 
 		if (options.watch) {
 			this._locationWatchId =
@@ -37,7 +37,7 @@ L.Map.include({
 	},
 
 	stopLocate: function () {
-		if (navigator.geolocation) {
+		if (navigator.geolocation && navigator.geolocation.clearWatch) {
 			navigator.geolocation.clearWatch(this._locationWatchId);
 		}
 		if (this._locateOptions) {
@@ -66,14 +66,7 @@ L.Map.include({
 		var lat = pos.coords.latitude,
 		    lng = pos.coords.longitude,
 		    latlng = new L.LatLng(lat, lng),
-
-		    latAccuracy = 180 * pos.coords.accuracy / 40075017,
-		    lngAccuracy = latAccuracy / Math.cos((Math.PI / 180) * lat),
-
-		    bounds = L.latLngBounds(
-		            [lat - latAccuracy, lng - lngAccuracy],
-		            [lat + latAccuracy, lng + lngAccuracy]),
-
+		    bounds = latlng.toBounds(pos.coords.accuracy),
 		    options = this._locateOptions;
 
 		if (options.setView) {

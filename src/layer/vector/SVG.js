@@ -4,14 +4,27 @@
 
 L.SVG = L.Renderer.extend({
 
+	getEvents: function () {
+		var events = L.Renderer.prototype.getEvents.call(this);
+		events.zoomstart = this._onZoomStart;
+		return events;
+	},
+
 	_initContainer: function () {
 		this._container = L.SVG.create('svg');
 
-		this._paths = {};
-		this._initEvents();
-
 		// makes it possible to click through svg root; we'll reset it back in individual paths
 		this._container.setAttribute('pointer-events', 'none');
+
+		this._rootGroup = L.SVG.create('g');
+		this._container.appendChild(this._rootGroup);
+	},
+
+	_onZoomStart: function () {
+		// Drag-then-pinch interactions might mess up the center and zoom.
+		// In this case, the easiest way to prevent this is re-do the renderer
+		//   bounds and padding when the zooming starts.
+		this._update();
 	},
 
 	_update: function () {
@@ -21,15 +34,7 @@ L.SVG = L.Renderer.extend({
 
 		var b = this._bounds,
 		    size = b.getSize(),
-		    container = this._container,
-		    pane = this.getPane();
-
-		// hack to make flicker on drag end on mobile webkit less irritating
-		if (L.Browser.mobileWebkit) {
-			pane.removeChild(container);
-		}
-
-		L.DomUtil.setPosition(container, b.min);
+		    container = this._container;
 
 		// set size of svg-container if changed
 		if (!this._svgSize || !this._svgSize.equals(size)) {
@@ -41,10 +46,6 @@ L.SVG = L.Renderer.extend({
 		// movement: update container viewBox so that we don't have to change coordinates of individual layers
 		L.DomUtil.setPosition(container, b.min);
 		container.setAttribute('viewBox', [b.min.x, b.min.y, size.x, size.y].join(' '));
-		
-		if (L.Browser.mobileWebkit) {
-			pane.appendChild(container);
-		}
 	},
 
 	// methods below are called by vector layers implementations
@@ -56,23 +57,21 @@ L.SVG = L.Renderer.extend({
 			L.DomUtil.addClass(path, layer.options.className);
 		}
 
-		if (layer.options.clickable) {
-			L.DomUtil.addClass(path, 'leaflet-clickable');
+		if (layer.options.interactive) {
+			L.DomUtil.addClass(path, 'leaflet-interactive');
 		}
 
 		this._updateStyle(layer);
 	},
 
 	_addPath: function (layer) {
-		var path = layer._path;
-		this._container.appendChild(path);
-		this._paths[L.stamp(path)] = layer;
+		this._rootGroup.appendChild(layer._path);
+		layer.addInteractiveTarget(layer._path);
 	},
 
 	_removePath: function (layer) {
-		var path = layer._path;
-		L.DomUtil.remove(path);
-		delete this._paths[L.stamp(path)];
+		L.DomUtil.remove(layer._path);
+		layer.removeInteractiveTarget(layer._path);
 	},
 
 	_updatePath: function (layer) {
@@ -82,7 +81,7 @@ L.SVG = L.Renderer.extend({
 
 	_updateStyle: function (layer) {
 		var path = layer._path,
-			options = layer.options;
+		    options = layer.options;
 
 		if (!path) { return; }
 
@@ -111,12 +110,12 @@ L.SVG = L.Renderer.extend({
 		if (options.fill) {
 			path.setAttribute('fill', options.fillColor || options.color);
 			path.setAttribute('fill-opacity', options.fillOpacity);
-			path.setAttribute('fill-rule', 'evenodd');
+			path.setAttribute('fill-rule', options.fillRule || 'evenodd');
 		} else {
 			path.setAttribute('fill', 'none');
 		}
 
-		path.setAttribute('pointer-events', options.pointerEvents || (options.clickable ? 'visiblePainted' : 'none'));
+		path.setAttribute('pointer-events', options.pointerEvents || (options.interactive ? 'visiblePainted' : 'none'));
 	},
 
 	_updatePoly: function (layer, closed) {
@@ -132,7 +131,7 @@ L.SVG = L.Renderer.extend({
 		// drawing a circle with two half-arcs
 		var d = layer._empty() ? 'M0 0' :
 				'M' + (p.x - r) + ',' + p.y +
-				arc +  (r * 2) + ',0 ' +
+				arc + (r * 2) + ',0 ' +
 				arc + (-r * 2) + ',0 ';
 
 		this._setPath(layer, d);
@@ -149,19 +148,6 @@ L.SVG = L.Renderer.extend({
 
 	_bringToBack: function (layer) {
 		L.DomUtil.toBack(layer._path);
-	},
-
-	// TODO remove duplication with L.Map
-	_initEvents: function () {
-		L.DomEvent.on(this._container, 'click dblclick mousedown mouseup mouseover mouseout mousemove contextmenu',
-				this._fireMouseEvent, this);
-	},
-
-	_fireMouseEvent: function (e) {
-		var path = this._paths[L.stamp(e.target || e.srcElement)];
-		if (path) {
-			path._fireMouseEvent(e);
-		}
 	}
 });
 
@@ -174,7 +160,7 @@ L.extend(L.SVG, {
 	// generates SVG path string for multiple rings, with each ring turning into "M..L..L.." instructions
 	pointsToPath: function (rings, closed) {
 		var str = '',
-			i, j, len, len2, points, p;
+		    i, j, len, len2, points, p;
 
 		for (i = 0, len = rings.length; i < len; i++) {
 			points = rings[i];

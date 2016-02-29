@@ -100,27 +100,30 @@ L.DomUtil = {
 			el.style.opacity = value;
 
 		} else if ('filter' in el.style) {
+			L.DomUtil._setOpacityIE(el, value);
+		}
+	},
 
-			var filter = false,
-			    filterName = 'DXImageTransform.Microsoft.Alpha';
+	_setOpacityIE: function (el, value) {
+		var filter = false,
+		    filterName = 'DXImageTransform.Microsoft.Alpha';
 
-			// filters collection throws an error if we try to retrieve a filter that doesn't exist
-			try {
-				filter = el.filters.item(filterName);
-			} catch (e) {
-				// don't set opacity to 1 if we haven't already set an opacity,
-				// it isn't needed and breaks transparent pngs.
-				if (value === 1) { return; }
-			}
+		// filters collection throws an error if we try to retrieve a filter that doesn't exist
+		try {
+			filter = el.filters.item(filterName);
+		} catch (e) {
+			// don't set opacity to 1 if we haven't already set an opacity,
+			// it isn't needed and breaks transparent pngs.
+			if (value === 1) { return; }
+		}
 
-			value = Math.round(value * 100);
+		value = Math.round(value * 100);
 
-			if (filter) {
-				filter.Enabled = (value !== 100);
-				filter.Opacity = value;
-			} else {
-				el.style.filter += ' progid:' + filterName + '(opacity=' + value + ')';
-			}
+		if (filter) {
+			filter.Enabled = (value !== 100);
+			filter.Opacity = value;
+		} else {
+			el.style.filter += ' progid:' + filterName + '(opacity=' + value + ')';
 		}
 	},
 
@@ -140,15 +143,19 @@ L.DomUtil = {
 		var pos = offset || new L.Point(0, 0);
 
 		el.style[L.DomUtil.TRANSFORM] =
-			'translate3d(' + pos.x + 'px,' + pos.y + 'px' + ',0)' + (scale ? ' scale(' + scale + ')' : '');
+			(L.Browser.ie3d ?
+				'translate(' + pos.x + 'px,' + pos.y + 'px)' :
+				'translate3d(' + pos.x + 'px,' + pos.y + 'px,0)') +
+			(scale ? ' scale(' + scale + ')' : '');
 	},
 
-	setPosition: function (el, point, no3d) { // (HTMLElement, Point[, Boolean])
+	setPosition: function (el, point) { // (HTMLElement, Point[, Boolean])
 
-		// jshint camelcase: false
+		/*eslint-disable */
 		el._leaflet_pos = point;
+		/*eslint-enable */
 
-		if (L.Browser.any3d && !no3d) {
+		if (L.Browser.any3d) {
 			L.DomUtil.setTransform(el, point);
 		} else {
 			el.style.left = point.x + 'px';
@@ -160,8 +167,7 @@ L.DomUtil = {
 		// this method is only used for elements previously positioned using setPosition,
 		// so it's safe to cache the position for performance
 
-		// jshint camelcase: false
-		return el._leaflet_pos;
+		return el._leaflet_pos || new L.Point(0, 0);
 	}
 };
 
@@ -215,5 +221,24 @@ L.DomUtil = {
 	};
 	L.DomUtil.enableImageDrag = function () {
 		L.DomEvent.off(window, 'dragstart', L.DomEvent.preventDefault);
+	};
+
+	L.DomUtil.preventOutline = function (element) {
+		while (element.tabIndex === -1) {
+			element = element.parentNode;
+		}
+		if (!element || !element.style) { return; }
+		L.DomUtil.restoreOutline();
+		this._outlineElement = element;
+		this._outlineStyle = element.style.outline;
+		element.style.outline = 'none';
+		L.DomEvent.on(window, 'keydown', L.DomUtil.restoreOutline, this);
+	};
+	L.DomUtil.restoreOutline = function () {
+		if (!this._outlineElement) { return; }
+		this._outlineElement.style.outline = this._outlineStyle;
+		delete this._outlineElement;
+		delete this._outlineStyle;
+		L.DomEvent.off(window, 'keydown', L.DomUtil.restoreOutline, this);
 	};
 })();

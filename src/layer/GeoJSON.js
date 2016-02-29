@@ -20,7 +20,7 @@ L.GeoJSON = L.FeatureGroup.extend({
 
 		if (features) {
 			for (i = 0, len = features.length; i < len; i++) {
-				// Only add this if geometry or geometries are set and not null
+				// only add this if geometry or geometries are set and not null
 				feature = features[i];
 				if (feature.geometries || feature.geometry || feature.features || feature.coordinates) {
 					this.addData(feature);
@@ -31,9 +31,12 @@ L.GeoJSON = L.FeatureGroup.extend({
 
 		var options = this.options;
 
-		if (options.filter && !options.filter(geojson)) { return; }
+		if (options.filter && !options.filter(geojson)) { return this; }
 
 		var layer = L.GeoJSON.geometryToLayer(geojson, options);
+		if (!layer) {
+			return this;
+		}
 		layer.feature = L.GeoJSON.asFeature(geojson);
 
 		layer.defaultOptions = layer.options;
@@ -48,7 +51,7 @@ L.GeoJSON = L.FeatureGroup.extend({
 
 	resetStyle: function (layer) {
 		// reset any custom styles
-		layer.options = layer.defaultOptions;
+		layer.options = L.Util.extend({}, layer.defaultOptions);
 		this._setLayerStyle(layer, this.options.style);
 		return this;
 	},
@@ -73,11 +76,15 @@ L.extend(L.GeoJSON, {
 	geometryToLayer: function (geojson, options) {
 
 		var geometry = geojson.type === 'Feature' ? geojson.geometry : geojson,
-		    coords = geometry.coordinates,
+		    coords = geometry ? geometry.coordinates : null,
 		    layers = [],
 		    pointToLayer = options && options.pointToLayer,
 		    coordsToLatLng = options && options.coordsToLatLng || this.coordsToLatLng,
 		    latlng, latlngs, i, len;
+
+		if (!coords && !geometry) {
+			return null;
+		}
 
 		switch (geometry.type) {
 		case 'Point':
@@ -103,12 +110,15 @@ L.extend(L.GeoJSON, {
 
 		case 'GeometryCollection':
 			for (i = 0, len = geometry.geometries.length; i < len; i++) {
-
-				layers.push(this.geometryToLayer({
+				var layer = this.geometryToLayer({
 					geometry: geometry.geometries[i],
 					type: 'Feature',
 					properties: geojson.properties
-				}, options));
+				}, options);
+
+				if (layer) {
+					layers.push(layer);
+				}
 			}
 			return new L.FeatureGroup(layers);
 
@@ -146,7 +156,7 @@ L.extend(L.GeoJSON, {
 
 		for (var i = 0, len = latlngs.length; i < len; i++) {
 			coords.push(levelsDeep ?
-				L.GeoJSON.latLngsToCoords(latlngs[i], levelsDeep - 1, closed):
+				L.GeoJSON.latLngsToCoords(latlngs[i], levelsDeep - 1, closed) :
 				L.GeoJSON.latLngToCoords(latlngs[i]));
 		}
 
@@ -163,15 +173,15 @@ L.extend(L.GeoJSON, {
 				L.GeoJSON.asFeature(newGeometry);
 	},
 
-	asFeature: function (geoJSON) {
-		if (geoJSON.type === 'Feature') {
-			return geoJSON;
+	asFeature: function (geojson) {
+		if (geojson.type === 'Feature') {
+			return geojson;
 		}
 
 		return {
 			type: 'Feature',
 			properties: {},
-			geometry: geoJSON
+			geometry: geojson
 		};
 	}
 });
@@ -190,7 +200,7 @@ L.Circle.include(PointToGeoJSON);
 L.CircleMarker.include(PointToGeoJSON);
 
 L.Polyline.prototype.toGeoJSON = function () {
-	var multi = !this._flat(this._latlngs);
+	var multi = !L.Polyline._flat(this._latlngs);
 
 	var coords = L.GeoJSON.latLngsToCoords(this._latlngs, multi ? 1 : 0);
 
@@ -201,15 +211,11 @@ L.Polyline.prototype.toGeoJSON = function () {
 };
 
 L.Polygon.prototype.toGeoJSON = function () {
-	var holes = !this._flat(this._latlngs),
-	    multi = holes && !this._flat(this._latlngs[0]);
+	var holes = !L.Polyline._flat(this._latlngs),
+	    multi = holes && !L.Polyline._flat(this._latlngs[0]);
 
 	var coords = L.GeoJSON.latLngsToCoords(this._latlngs, multi ? 2 : holes ? 1 : 0, true);
 
-	if (holes && this._latlngs.length === 1) {
-		multi = true;
-		coords = [coords];
-	}
 	if (!holes) {
 		coords = [coords];
 	}
@@ -244,7 +250,7 @@ L.LayerGroup.include({
 		}
 
 		var isGeometryCollection = type === 'GeometryCollection',
-			jsons = [];
+		    jsons = [];
 
 		this.eachLayer(function (layer) {
 			if (layer.toGeoJSON) {
@@ -267,6 +273,8 @@ L.LayerGroup.include({
 	}
 });
 
-L.geoJson = function (geojson, options) {
+L.geoJSON = function (geojson, options) {
 	return new L.GeoJSON(geojson, options);
 };
+// Backward compatibility.
+L.geoJson = L.geoJSON;

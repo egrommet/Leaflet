@@ -4,6 +4,7 @@
 	<meta charset="utf-8">
 	<title>Leaflet Spec Runner</title>
 	<link rel="stylesheet" type="text/css" href="../node_modules/mocha/mocha.css">
+	<link rel="stylesheet" type="text/css" href="../dist/leaflet.css">
 </head>
 <body>
 	<div id="mocha"></div>
@@ -29,6 +30,7 @@
 	<script type="text/javascript" src="suites/SpecHelper.js"></script>
 
 	<!-- /control -->
+	<script type="text/javascript" src="suites/control/ControlSpec.js"></script>
 	<script type="text/javascript" src="suites/control/Control.LayersSpec.js"></script>
 	<script type="text/javascript" src="suites/control/Control.ScaleSpec.js"></script>
 	<script type="text/javascript" src="suites/control/Control.AttributionSpec.js"></script>
@@ -57,6 +59,7 @@
 	<!-- /layer -->
 	<script type="text/javascript" src="suites/layer/FeatureGroupSpec.js"></script>
 	<script type="text/javascript" src="suites/layer/GeoJSONSpec.js"></script>
+	<script type="text/javascript" src="suites/layer/ImageOverlaySpec.js"></script>
 	<script type="text/javascript" src="suites/layer/LayerGroupSpec.js"></script>
 	<script type="text/javascript" src="suites/layer/PopupSpec.js"></script>
 
@@ -70,15 +73,20 @@
 	<!-- /layer/vector/ -->
 	<script type="text/javascript" src="suites/layer/vector/CircleSpec.js"></script>
 	<script type="text/javascript" src="suites/layer/vector/CircleMarkerSpec.js"></script>
+	<script type="text/javascript" src="suites/layer/vector/PathSpec.js"></script>
 	<script type="text/javascript" src="suites/layer/vector/PolygonSpec.js"></script>
 	<script type="text/javascript" src="suites/layer/vector/PolylineSpec.js"></script>
 	<script type="text/javascript" src="suites/layer/vector/PolylineGeometrySpec.js"></script>
+	<script type="text/javascript" src="suites/layer/vector/CanvasSpec.js"></script>
 
 	<!-- /map -->
 	<script type="text/javascript" src="suites/map/MapSpec.js"></script>
 
 	<!-- /map/handler -->
 	<script type="text/javascript" src="suites/map/handler/Map.DragSpec.js"></script>
+
+	<!-- /geo/crs -->
+	<script type="text/javascript" src="suites/geo/CRSSpec.js"></script>
 
 	<script>
 		(window.mochaPhantomJS || window.mocha).run();

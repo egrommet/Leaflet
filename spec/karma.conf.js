@@ -22,7 +22,9 @@ module.exports = function (config) {
 			'karma-mocha',
 			'karma-coverage',
 			'karma-phantomjs-launcher',
-			'karma-chrome-launcher'],
+			'karma-chrome-launcher',
+			'karma-safari-launcher',
+			'karma-firefox-launcher'],
 
 		// frameworks to use
 		frameworks: ['mocha'],
@@ -60,6 +62,10 @@ module.exports = function (config) {
 
 		// If browser does not capture in given timeout [ms], kill it
 		captureTimeout: 5000,
+
+		// Workaround for PhantomJS random DISCONNECTED error
+		browserDisconnectTimeout: 10000, // default 2000
+		browserDisconnectTolerance: 1, // default 0
 
 		// Continuous Integration mode
 		// if true, it capture browsers, run tests and exit

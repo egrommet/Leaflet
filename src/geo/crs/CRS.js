@@ -34,6 +34,10 @@ L.CRS = {
 		return 256 * Math.pow(2, zoom);
 	},
 
+	zoom: function (scale) {
+		return Math.log(scale / 256) / Math.LN2;
+	},
+
 	// returns the bounds of the world in projected coords if applicable
 	getProjectedBounds: function (zoom) {
 		if (this.infinite) { return null; }
@@ -56,8 +60,9 @@ L.CRS = {
 	// wraps geo coords in certain ranges if applicable
 	wrapLatLng: function (latlng) {
 		var lng = this.wrapLng ? L.Util.wrapNum(latlng.lng, this.wrapLng, true) : latlng.lng,
-		    lat = this.wrapLat ? L.Util.wrapNum(latlng.lat, this.wrapLat, true) : latlng.lat;
+		    lat = this.wrapLat ? L.Util.wrapNum(latlng.lat, this.wrapLat, true) : latlng.lat,
+		    alt = latlng.alt;
 
-		return L.latLng(lat, lng);
+		return L.latLng(lat, lng, alt);
 	}
 };

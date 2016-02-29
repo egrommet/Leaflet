@@ -8,15 +8,22 @@ L.Polygon = L.Polyline.extend({
 		fill: true
 	},
 
+	isEmpty: function () {
+		return !this._latlngs.length || !this._latlngs[0].length;
+	},
+
 	getCenter: function () {
-		var i, j, len, p1, p2, f, area, x, y,
-		    points = this._rings[0];
+		var i, j, p1, p2, f, area, x, y, center,
+		    points = this._rings[0],
+		    len = points.length;
+
+		if (!len) { return null; }
 
 		// polygon centroid algorithm; only uses the first ring if there are multiple
 
 		area = x = y = 0;
 
-		for (i = 0, len = points.length, j = len - 1; i < len; j = i++) {
+		for (i = 0, j = len - 1; i < len; j = i++) {
 			p1 = points[i];
 			p2 = points[j];
 
@@ -26,7 +33,13 @@ L.Polygon = L.Polyline.extend({
 			area += f * 3;
 		}
 
-		return this._map.layerPointToLatLng([x / area, y / area]);
+		if (area === 0) {
+			// Polygon is so small that all points are on same pixel.
+			center = points[0];
+		} else {
+			center = [x / area, y / area];
+		}
+		return this._map.layerPointToLatLng(center);
 	},
 
 	_convertLatLngs: function (latlngs) {
@@ -40,12 +53,18 @@ L.Polygon = L.Polyline.extend({
 		return result;
 	},
 
-	_clipPoints: function () {
-		if (this.options.noClip) {
-			this._parts = this._rings;
-			return;
+	_setLatLngs: function (latlngs) {
+		L.Polyline.prototype._setLatLngs.call(this, latlngs);
+		if (L.Polyline._flat(this._latlngs)) {
+			this._latlngs = [this._latlngs];
 		}
+	},
 
+	_defaultShape: function () {
+		return L.Polyline._flat(this._latlngs[0]) ? this._latlngs[0] : this._latlngs[0][0];
+	},
+
+	_clipPoints: function () {
 		// polygons need a different clipping algorithm so we redefine that
 
 		var bounds = this._renderer._bounds,
@@ -56,9 +75,17 @@ L.Polygon = L.Polyline.extend({
 		bounds = new L.Bounds(bounds.min.subtract(p), bounds.max.add(p));
 
 		this._parts = [];
+		if (!this._pxBounds || !this._pxBounds.intersects(bounds)) {
+			return;
+		}
+
+		if (this.options.noClip) {
+			this._parts = this._rings;
+			return;
+		}
 
 		for (var i = 0, len = this._rings.length, clipped; i < len; i++) {
-			clipped = L.PolyUtil.clipPolygon(this._rings[i], bounds);
+			clipped = L.PolyUtil.clipPolygon(this._rings[i], bounds, true);
 			if (clipped.length) {
 				this._parts.push(clipped);
 			}

@@ -15,8 +15,11 @@ L.Control.Attribution = L.Control.extend({
 	},
 
 	onAdd: function (map) {
+		map.attributionControl = this;
 		this._container = L.DomUtil.create('div', 'leaflet-control-attribution');
-		L.DomEvent.disableClickPropagation(this._container);
+		if (L.DomEvent) {
+			L.DomEvent.disableClickPropagation(this._container);
+		}
 
 		// TODO ugly, refactor
 		for (var i in map._layers) {
@@ -37,7 +40,7 @@ L.Control.Attribution = L.Control.extend({
 	},
 
 	addAttribution: function (text) {
-		if (!text) { return; }
+		if (!text) { return this; }
 
 		if (!this._attributions[text]) {
 			this._attributions[text] = 0;
@@ -50,7 +53,7 @@ L.Control.Attribution = L.Control.extend({
 	},
 
 	removeAttribution: function (text) {
-		if (!text) { return; }
+		if (!text) { return this; }
 
 		if (this._attributions[text]) {
 			this._attributions[text]--;
@@ -90,7 +93,7 @@ L.Map.mergeOptions({
 
 L.Map.addInitHook(function () {
 	if (this.options.attributionControl) {
-		this.attributionControl = (new L.Control.Attribution()).addTo(this);
+		new L.Control.Attribution().addTo(this);
 	}
 });
 

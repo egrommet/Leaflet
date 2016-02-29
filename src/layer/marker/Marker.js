@@ -6,11 +6,12 @@ L.Marker = L.Layer.extend({
 
 	options: {
 		pane: 'markerPane',
+		nonBubblingEvents: ['click', 'dblclick', 'mouseover', 'mouseout', 'contextmenu'],
 
 		icon: new L.Icon.Default(),
 		// title: '',
 		// alt: '',
-		clickable: true,
+		interactive: true,
 		// draggable: false,
 		keyboard: true,
 		zIndexOffset: 0,
@@ -32,8 +33,9 @@ L.Marker = L.Layer.extend({
 	},
 
 	onRemove: function () {
-		if (this.dragging) {
-			this.dragging.disable();
+		if (this.dragging && this.dragging.enabled()) {
+			this.options.draggable = true;
+			this.dragging.removeHooks();
 		}
 
 		this._removeIcon();
@@ -41,7 +43,10 @@ L.Marker = L.Layer.extend({
 	},
 
 	getEvents: function () {
-		var events = {viewreset: this.update};
+		var events = {
+			zoom: this.update,
+			viewreset: this.update
+		};
 
 		if (this._zoomAnimated) {
 			events.zoomanim = this._animateZoom;
@@ -58,7 +63,7 @@ L.Marker = L.Layer.extend({
 		var oldLatLng = this._latlng;
 		this._latlng = L.latLng(latlng);
 		this.update();
-		return this.fire('move', { oldLatLng: oldLatLng, latlng: this._latlng });
+		return this.fire('move', {oldLatLng: oldLatLng, latlng: this._latlng});
 	},
 
 	setZIndexOffset: function (offset) {
@@ -76,10 +81,14 @@ L.Marker = L.Layer.extend({
 		}
 
 		if (this._popup) {
-			this.bindPopup(this._popup);
+			this.bindPopup(this._popup, this._popup.options);
 		}
 
 		return this;
+	},
+
+	getElement: function () {
+		return this._icon;
 	},
 
 	update: function () {
@@ -97,7 +106,7 @@ L.Marker = L.Layer.extend({
 		    classToAdd = 'leaflet-zoom-' + (this._zoomAnimated ? 'animated' : 'hide');
 
 		var icon = options.icon.createIcon(this._icon),
-			addIcon = false;
+		    addIcon = false;
 
 		// if we're not reusing the icon, remove the old one and init new one
 		if (icon !== this._icon) {
@@ -121,17 +130,16 @@ L.Marker = L.Layer.extend({
 		}
 
 		this._icon = icon;
-		this._initInteraction();
 
 		if (options.riseOnHover) {
-			L.DomEvent.on(icon, {
+			this.on({
 				mouseover: this._bringToFront,
 				mouseout: this._resetZIndex
-			}, this);
+			});
 		}
 
 		var newShadow = options.icon.createShadow(this._shadow),
-			addShadow = false;
+		    addShadow = false;
 
 		if (newShadow !== this._shadow) {
 			this._removeShadow();
@@ -152,6 +160,7 @@ L.Marker = L.Layer.extend({
 		if (addIcon) {
 			this.getPane().appendChild(this._icon);
 		}
+		this._initInteraction();
 		if (newShadow && addShadow) {
 			this.getPane('shadowPane').appendChild(this._shadow);
 		}
@@ -159,13 +168,14 @@ L.Marker = L.Layer.extend({
 
 	_removeIcon: function () {
 		if (this.options.riseOnHover) {
-			L.DomEvent.off(this._icon, {
+			this.off({
 				mouseover: this._bringToFront,
-			    mouseout: this._resetZIndex
-			}, this);
+				mouseout: this._resetZIndex
+			});
 		}
 
 		L.DomUtil.remove(this._icon);
+		this.removeInteractiveTarget(this._icon);
 
 		this._icon = null;
 	},
@@ -201,36 +211,24 @@ L.Marker = L.Layer.extend({
 
 	_initInteraction: function () {
 
-		if (!this.options.clickable) { return; }
+		if (!this.options.interactive) { return; }
 
-		L.DomUtil.addClass(this._icon, 'leaflet-clickable');
+		L.DomUtil.addClass(this._icon, 'leaflet-interactive');
 
-		L.DomEvent.on(this._icon, 'click dblclick mousedown mouseup mouseover mouseout contextmenu keypress',
-				this._fireMouseEvent, this);
+		this.addInteractiveTarget(this._icon);
 
 		if (L.Handler.MarkerDrag) {
+			var draggable = this.options.draggable;
+			if (this.dragging) {
+				draggable = this.dragging.enabled();
+				this.dragging.disable();
+			}
+
 			this.dragging = new L.Handler.MarkerDrag(this);
 
-			if (this.options.draggable) {
+			if (draggable) {
 				this.dragging.enable();
 			}
-		}
-	},
-
-	_fireMouseEvent: function (e, type) {
-		// to prevent outline when clicking on keyboard-focusable marker
-		if (e.type === 'mousedown') {
-			L.DomEvent.preventDefault(e);
-		}
-
-		if (e.type === 'click' && this.dragging && this.dragging.moved()) { return; }
-
-		if (e.type === 'keypress' && e.keyCode === 13) {
-			type = 'click';
-		}
-
-		if (this._map) {
-			this._map._fireMouseEvent(this, e, type, true, this._latlng);
 		}
 	},
 

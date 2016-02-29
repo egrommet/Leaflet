@@ -40,6 +40,19 @@ L.LatLng.prototype = {
 
 	wrap: function () {
 		return L.CRS.Earth.wrapLatLng(this);
+	},
+
+	toBounds: function (sizeInMeters) {
+		var latAccuracy = 180 * sizeInMeters / 40075017,
+		    lngAccuracy = latAccuracy / Math.cos((Math.PI / 180) * this.lat);
+
+		return L.latLngBounds(
+		        [this.lat - latAccuracy, this.lng - lngAccuracy],
+		        [this.lat + latAccuracy, this.lng + lngAccuracy]);
+	},
+
+	clone: function () {
+		return new L.LatLng(this.lat, this.lng, this.alt);
 	}
 };
 
@@ -47,7 +60,7 @@ L.LatLng.prototype = {
 // constructs LatLng with different signatures
 // (LatLng) or ([Number, Number]) or (Number, Number) or (Object)
 
-L.latLng = function (a, b) {
+L.latLng = function (a, b, c) {
 	if (a instanceof L.LatLng) {
 		return a;
 	}
@@ -55,17 +68,19 @@ L.latLng = function (a, b) {
 		if (a.length === 3) {
 			return new L.LatLng(a[0], a[1], a[2]);
 		}
-		return new L.LatLng(a[0], a[1]);
+		if (a.length === 2) {
+			return new L.LatLng(a[0], a[1]);
+		}
+		return null;
 	}
 	if (a === undefined || a === null) {
 		return a;
 	}
 	if (typeof a === 'object' && 'lat' in a) {
-		return new L.LatLng(a.lat, 'lng' in a ? a.lng : a.lon);
+		return new L.LatLng(a.lat, 'lng' in a ? a.lng : a.lon, a.alt);
 	}
 	if (b === undefined) {
 		return null;
 	}
-	return new L.LatLng(a, b);
+	return new L.LatLng(a, b, c);
 };
-

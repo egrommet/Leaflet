@@ -16,12 +16,9 @@ L.Class.extend = function (props) {
 		}
 
 		// call all constructor hooks
-		if (this._initHooks.length) {
-			this.callInitHooks();
-		}
+		this.callInitHooks();
 	};
 
-	// jshint camelcase: false
 	var parentProto = NewClass.__super__ = this.prototype;
 
 	var proto = L.Util.create(parentProto);
@@ -29,7 +26,7 @@ L.Class.extend = function (props) {
 
 	NewClass.prototype = proto;
 
-	//inherit parent's statics
+	// inherit parent's statics
 	for (var i in this) {
 		if (this.hasOwnProperty(i) && i !== 'prototype') {
 			NewClass[i] = this[i];
@@ -81,11 +78,13 @@ L.Class.extend = function (props) {
 // method for adding properties to prototype
 L.Class.include = function (props) {
 	L.extend(this.prototype, props);
+	return this;
 };
 
 // merge new default options to the Class
 L.Class.mergeOptions = function (options) {
 	L.extend(this.prototype.options, options);
+	return this;
 };
 
 // add a constructor hook
@@ -98,4 +97,5 @@ L.Class.addInitHook = function (fn) { // (Function) || (String, args...)
 
 	this.prototype._initHooks = this.prototype._initHooks || [];
 	this.prototype._initHooks.push(init);
+	return this;
 };

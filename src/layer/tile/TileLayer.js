@@ -5,20 +5,17 @@
 L.TileLayer = L.GridLayer.extend({
 
 	options: {
-		minZoom: 0,
 		maxZoom: 18,
 
 		subdomains: 'abc',
-		// errorTileUrl: '',
-		zoomOffset: 0
+		errorTileUrl: '',
+		zoomOffset: 0,
 
-		/*
-		maxNativeZoom: <Number>,
-		tms: <Boolean>,
-		zoomReverse: <Number>,
-		detectRetina: <Boolean>,
-		crossOrigin: <Boolean>,
-		*/
+		maxNativeZoom: null, // Number
+		tms: false,
+		zoomReverse: false,
+		detectRetina: false,
+		crossOrigin: false
 	},
 
 	initialize: function (url, options) {
@@ -40,6 +37,11 @@ L.TileLayer = L.GridLayer.extend({
 		if (typeof options.subdomains === 'string') {
 			options.subdomains = options.subdomains.split('');
 		}
+
+		// for https://github.com/Leaflet/Leaflet/issues/137
+		if (!L.Browser.android) {
+			this.on('tileunload', this._onTileRemove);
+		}
 	},
 
 	setUrl: function (url, noRedraw) {
@@ -54,13 +56,13 @@ L.TileLayer = L.GridLayer.extend({
 	createTile: function (coords, done) {
 		var tile = document.createElement('img');
 
-		tile.onload = L.bind(this._tileOnLoad, this, done, tile);
-		tile.onerror = L.bind(this._tileOnError, this, done, tile);
-		
+		L.DomEvent.on(tile, 'load', L.bind(this._tileOnLoad, this, done, tile));
+		L.DomEvent.on(tile, 'error', L.bind(this._tileOnError, this, done, tile));
+
 		if (this.options.crossOrigin) {
 			tile.crossOrigin = '';
 		}
-		
+
 		/*
 		 Alt tag is set to empty string to keep screen readers from reading URL and for compliance reasons
 		 http://www.w3.org/TR/WCAG20-TECHS/H67
@@ -74,16 +76,21 @@ L.TileLayer = L.GridLayer.extend({
 
 	getTileUrl: function (coords) {
 		return L.Util.template(this._url, L.extend({
-			r: this.options.detectRetina && L.Browser.retina && this.options.maxZoom > 0 ? '@2x' : '',
+			r: L.Browser.retina ? '@2x' : '',
 			s: this._getSubdomain(coords),
 			x: coords.x,
-			y: this.options.tms ? this._tileNumBounds.max.y - coords.y : coords.y,
+			y: this.options.tms ? this._globalTileRange.max.y - coords.y : coords.y,
 			z: this._getZoomForUrl()
 		}, this.options));
 	},
 
 	_tileOnLoad: function (done, tile) {
-		done(null, tile);
+		// For https://github.com/Leaflet/Leaflet/issues/3332
+		if (L.Browser.ielt9) {
+			setTimeout(L.bind(done, this, null, tile), 0);
+		} else {
+			done(null, tile);
+		}
 	},
 
 	_tileOnError: function (done, tile, e) {
@@ -94,34 +101,26 @@ L.TileLayer = L.GridLayer.extend({
 		done(e, tile);
 	},
 
-	_getTileSize: function () {
+	getTileSize: function () {
 		var map = this._map,
-		    options = this.options,
-		    zoom = map.getZoom() + options.zoomOffset,
-		    zoomN = options.maxNativeZoom;
+		    tileSize = L.GridLayer.prototype.getTileSize.call(this),
+		    zoom = this._tileZoom + this.options.zoomOffset,
+		    zoomN = this.options.maxNativeZoom;
 
 		// increase tile size when overscaling
-		return zoomN && zoom > zoomN ?
-				Math.round(map.getZoomScale(zoom) / map.getZoomScale(zoomN) * options.tileSize) :
-				options.tileSize;
+		return zoomN !== null && zoom > zoomN ?
+				tileSize.divideBy(map.getZoomScale(zoomN, zoom)).round() :
+				tileSize;
 	},
 
-	_removeTile: function (key) {
-		var tile = this._tiles[key];
-
-		L.GridLayer.prototype._removeTile.call(this, key);
-
-		// for https://github.com/Leaflet/Leaflet/issues/137
-		if (!L.Browser.android) {
-			tile.onload = null;
-			tile.src = L.Util.emptyImageUrl;
-		}
+	_onTileRemove: function (e) {
+		e.tile.onload = null;
 	},
 
 	_getZoomForUrl: function () {
 
 		var options = this.options,
-		    zoom = this._map.getZoom();
+		    zoom = this._tileZoom;
 
 		if (options.zoomReverse) {
 			zoom = options.maxZoom - zoom;
@@ -129,7 +128,7 @@ L.TileLayer = L.GridLayer.extend({
 
 		zoom += options.zoomOffset;
 
-		return options.maxNativeZoom ? Math.min(zoom, options.maxNativeZoom) : zoom;
+		return options.maxNativeZoom !== null ? Math.min(zoom, options.maxNativeZoom) : zoom;
 	},
 
 	_getSubdomain: function (tilePoint) {
@@ -141,14 +140,16 @@ L.TileLayer = L.GridLayer.extend({
 	_abortLoading: function () {
 		var i, tile;
 		for (i in this._tiles) {
-			tile = this._tiles[i];
+			if (this._tiles[i].coords.z !== this._tileZoom) {
+				tile = this._tiles[i].el;
 
-			if (!tile.complete) {
 				tile.onload = L.Util.falseFn;
 				tile.onerror = L.Util.falseFn;
-				tile.src = L.Util.emptyImageUrl;
 
-				L.DomUtil.remove(tile);
+				if (!tile.complete) {
+					tile.src = L.Util.emptyImageUrl;
+					L.DomUtil.remove(tile);
+				}
 			}
 		}
 	}

@@ -2,7 +2,8 @@
 L.Layer = L.Evented.extend({
 
 	options: {
-		pane: 'overlayPane'
+		pane: 'overlayPane',
+		nonBubblingEvents: []  // Array of events that should not be bubbled to DOM parents (like the map)
 	},
 
 	addTo: function (map) {
@@ -25,6 +26,16 @@ L.Layer = L.Evented.extend({
 		return this._map.getPane(name ? (this.options[name] || name) : this.options.pane);
 	},
 
+	addInteractiveTarget: function (targetEl) {
+		this._map._targets[L.stamp(targetEl)] = this;
+		return this;
+	},
+
+	removeInteractiveTarget: function (targetEl) {
+		delete this._map._targets[L.stamp(targetEl)];
+		return this;
+	},
+
 	_layerAdd: function (e) {
 		var map = e.target;
 
@@ -34,14 +45,14 @@ L.Layer = L.Evented.extend({
 		this._map = map;
 		this._zoomAnimated = map._zoomAnimated;
 
+		if (this.getEvents) {
+			map.on(this.getEvents(), this);
+		}
+
 		this.onAdd(map);
 
 		if (this.getAttribution && this._map.attributionControl) {
 			this._map.attributionControl.addAttribution(this.getAttribution());
-		}
-
-		if (this.getEvents) {
-			map.on(this.getEvents(), this);
 		}
 
 		this.fire('add');
@@ -60,6 +71,10 @@ L.Map.include({
 
 		if (layer.beforeAdd) {
 			layer.beforeAdd(this);
+		}
+
+		if (layer.getAttribution && this.attributionControl) {
+			this.attributionControl.addAttribution(layer.getAttribution());
 		}
 
 		this.whenReady(layer._layerAdd, layer);
@@ -133,8 +148,8 @@ L.Map.include({
 
 	_updateZoomLevels: function () {
 		var minZoom = Infinity,
-			maxZoom = -Infinity,
-			oldZoomSpan = this._getZoomSpan();
+		    maxZoom = -Infinity,
+		    oldZoomSpan = this._getZoomSpan();
 
 		for (var i in this._zoomBoundLayers) {
 			var options = this._zoomBoundLayers[i].options;

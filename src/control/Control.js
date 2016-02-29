@@ -37,6 +37,7 @@ L.Control = L.Class.extend({
 	},
 
 	addTo: function (map) {
+		this.remove();
 		this._map = map;
 
 		var container = this._container = this.onAdd(map),
@@ -55,6 +56,10 @@ L.Control = L.Class.extend({
 	},
 
 	remove: function () {
+		if (!this._map) {
+			return this;
+		}
+
 		L.DomUtil.remove(this._container);
 
 		if (this.onRemove) {
@@ -66,8 +71,9 @@ L.Control = L.Class.extend({
 		return this;
 	},
 
-	_refocusOnMap: function () {
-		if (this._map) {
+	_refocusOnMap: function (e) {
+		// if map exists and event is not a keyboard event
+		if (this._map && e && e.screenX > 0 && e.screenY > 0) {
 			this._map.getContainer().focus();
 		}
 	}

@@ -17,19 +17,21 @@ L.Path = L.Layer.extend({
 		// fill: false
 		// fillColor: same as color by default
 		fillOpacity: 0.2,
+		fillRule: 'evenodd',
 
 		// className: ''
-		clickable: true
+		interactive: true
+	},
+
+	beforeAdd: function (map) {
+		// Renderer is set here because we need to call renderer.getEvents
+		// before this.getEvents.
+		this._renderer = map.getRenderer(this);
 	},
 
 	onAdd: function () {
-		this._renderer = this._map.getRenderer(this);
 		this._renderer._initPath(this);
-
-		// defined in children classes
-		this._project();
-		this._update();
-
+		this._reset();
 		this._renderer._addPath(this);
 	},
 
@@ -39,8 +41,9 @@ L.Path = L.Layer.extend({
 
 	getEvents: function () {
 		return {
-			viewreset: this._project,
-			moveend: this._update
+			zoomend: this._project,
+			moveend: this._update,
+			viewreset: this._reset
 		};
 	},
 
@@ -60,17 +63,27 @@ L.Path = L.Layer.extend({
 	},
 
 	bringToFront: function () {
-		this._renderer._bringToFront(this);
+		if (this._renderer) {
+			this._renderer._bringToFront(this);
+		}
 		return this;
 	},
 
 	bringToBack: function () {
-		this._renderer._bringToBack(this);
+		if (this._renderer) {
+			this._renderer._bringToBack(this);
+		}
 		return this;
 	},
 
-	_fireMouseEvent: function (e, type) {
-		this._map._fireMouseEvent(this, e, type, true);
+	getElement: function () {
+		return this._path;
+	},
+
+	_reset: function () {
+		// defined in children classes
+		this._project();
+		this._update();
 	},
 
 	_clickTolerance: function () {

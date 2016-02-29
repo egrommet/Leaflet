@@ -18,12 +18,39 @@ if (zoomAnimated) {
 		// zoom transitions run with the same duration for all layers, so if one of transitionend events
 		// happens after starting zoom animation (propagating to the map pane), we know that it ended globally
 		if (this._zoomAnimated) {
-			L.DomEvent.on(this._mapPane, L.DomUtil.TRANSITION_END, this._catchTransitionEnd, this);
+
+			this._createAnimProxy();
+
+			L.DomEvent.on(this._proxy, L.DomUtil.TRANSITION_END, this._catchTransitionEnd, this);
 		}
 	});
 }
 
 L.Map.include(!zoomAnimated ? {} : {
+
+	_createAnimProxy: function () {
+
+		var proxy = this._proxy = L.DomUtil.create('div', 'leaflet-proxy leaflet-zoom-animated');
+		this._panes.mapPane.appendChild(proxy);
+
+		this.on('zoomanim', function (e) {
+			var prop = L.DomUtil.TRANSFORM,
+			    transform = proxy.style[prop];
+
+			L.DomUtil.setTransform(proxy, this.project(e.center, e.zoom), this.getZoomScale(e.zoom, 1));
+
+			// workaround for case when transform is the same and so transitionend event is not fired
+			if (transform === proxy.style[prop] && this._animatingZoom) {
+				this._onZoomTransitionEnd();
+			}
+		}, this);
+
+		this.on('load moveend', function () {
+			var c = this.getCenter(),
+			    z = this.getZoom();
+			L.DomUtil.setTransform(proxy, this.project(c, z), this.getZoomScale(z, 1));
+		}, this);
+	},
 
 	_catchTransitionEnd: function (e) {
 		if (this._animatingZoom && e.propertyName.indexOf('transform') >= 0) {
@@ -54,15 +81,14 @@ L.Map.include(!zoomAnimated ? {} : {
 
 		L.Util.requestAnimFrame(function () {
 			this
-			    .fire('movestart')
-			    .fire('zoomstart')
+			    ._moveStart(true)
 			    ._animateZoom(center, zoom, true);
 		}, this);
 
 		return true;
 	},
 
-	_animateZoom: function (center, zoom, startAnim) {
+	_animateZoom: function (center, zoom, startAnim, noUpdate) {
 		if (startAnim) {
 			this._animatingZoom = true;
 
@@ -70,35 +96,31 @@ L.Map.include(!zoomAnimated ? {} : {
 			this._animateToCenter = center;
 			this._animateToZoom = zoom;
 
-			// disable any dragging during animation
-			if (L.Draggable) {
-				L.Draggable._disabled = true;
-			}
-
 			L.DomUtil.addClass(this._mapPane, 'leaflet-zoom-anim');
 		}
-
-		var scale = this.getZoomScale(zoom),
-			origin = this._getCenterLayerPoint().add(this._getCenterOffset(center)._divideBy(1 - 1 / scale));
 
 		this.fire('zoomanim', {
 			center: center,
 			zoom: zoom,
-			origin: origin,
-			scale: scale
+			noUpdate: noUpdate
 		});
+
+		// Work around webkit not firing 'transitionend', see https://github.com/Leaflet/Leaflet/issues/3689, 2693
+		setTimeout(L.bind(this._onZoomTransitionEnd, this), 250);
 	},
 
 	_onZoomTransitionEnd: function () {
-
-		this._animatingZoom = false;
+		if (!this._animatingZoom) { return; }
 
 		L.DomUtil.removeClass(this._mapPane, 'leaflet-zoom-anim');
 
-		this._resetView(this._animateToCenter, this._animateToZoom, true, true);
+		// This anim frame should prevent an obscure iOS webkit tile loading race condition.
+		L.Util.requestAnimFrame(function () {
+			this._animatingZoom = false;
 
-		if (L.Draggable) {
-			L.Draggable._disabled = false;
-		}
+			this
+				._move(this._animateToCenter, this._animateToZoom)
+				._moveEnd(true);
+		}, this);
 	}
 });

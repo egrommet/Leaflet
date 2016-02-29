@@ -144,7 +144,7 @@ var deps = {
 
 	Canvas: {
 		src: ['layer/vector/Canvas.js'],
-		deps: ['Path'],
+		deps: ['CircleMarker', 'Path', 'Polygon', 'Polyline'],
 		desc: 'Canvas backend for vector layers.'
 	},
 
@@ -185,6 +185,7 @@ var deps = {
 
 	BoxZoom: {
 		src: ['map/handler/Map.BoxZoom.js'],
+		deps: ['MouseZoom'],
 		desc: 'Enables zooming to bounding box by shift-dragging the map.'
 	},
 
@@ -234,14 +235,11 @@ var deps = {
 		desc: 'Core panning animation support.'
 	},
 
-	AnimationTimer: {
-		src: ['dom/PosAnimation.Timer.js'],
-		deps: ['AnimationPan'],
-		desc: 'Timer-based pan animation fallback for browsers that don\'t support CSS3 transitions.'
-	},
-
 	AnimationZoom: {
-		src: ['map/anim/Map.ZoomAnimation.js'],
+		src: [
+			'map/anim/Map.ZoomAnimation.js',
+			'map/anim/Map.FlyTo.js'
+			],
 		deps: ['AnimationPan'],
 		desc: 'Smooth zooming animation. Works only on browsers that support CSS3 Transitions.'
 	},

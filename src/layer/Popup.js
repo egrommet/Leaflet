@@ -22,6 +22,7 @@ L.Popup = L.Layer.extend({
 		// autoPanPaddingBottomRight: <Point>,
 
 		closeButton: true,
+		autoClose: true,
 		// keepInView: false,
 		// className: '',
 		zoomAnimation: true
@@ -56,6 +57,7 @@ L.Popup = L.Layer.extend({
 
 		if (this._source) {
 			this._source.fire('popupopen', {popup: this}, true);
+			this._source.on('preclick', L.DomEvent.stopPropagation);
 		}
 	},
 
@@ -76,6 +78,7 @@ L.Popup = L.Layer.extend({
 
 		if (this._source) {
 			this._source.fire('popupclose', {popup: this}, true);
+			this._source.off('preclick', L.DomEvent.stopPropagation);
 		}
 	},
 
@@ -102,6 +105,10 @@ L.Popup = L.Layer.extend({
 		return this;
 	},
 
+	getElement: function () {
+		return this._container;
+	},
+
 	update: function () {
 		if (!this._map) { return; }
 
@@ -117,23 +124,39 @@ L.Popup = L.Layer.extend({
 	},
 
 	getEvents: function () {
-		var events = {viewreset: this._updatePosition},
-		    options = this.options;
+		var events = {
+			zoom: this._updatePosition,
+			viewreset: this._updatePosition
+		};
 
 		if (this._zoomAnimated) {
 			events.zoomanim = this._animateZoom;
 		}
-		if ('closeOnClick' in options ? options.closeOnClick : this._map.options.closePopupOnClick) {
+		if ('closeOnClick' in this.options ? this.options.closeOnClick : this._map.options.closePopupOnClick) {
 			events.preclick = this._close;
 		}
-		if (options.keepInView) {
+		if (this.options.keepInView) {
 			events.moveend = this._adjustPan;
 		}
 		return events;
 	},
-	
+
 	isOpen: function () {
 		return !!this._map && this._map.hasLayer(this);
+	},
+
+	bringToFront: function () {
+		if (this._map) {
+			L.DomUtil.toFront(this._container);
+		}
+		return this;
+	},
+
+	bringToBack: function () {
+		if (this._map) {
+			L.DomUtil.toBack(this._container);
+		}
+		return this;
 	},
 
 	_close: function () {
@@ -172,14 +195,15 @@ L.Popup = L.Layer.extend({
 		if (!this._content) { return; }
 
 		var node = this._contentNode;
+		var content = (typeof this._content === 'function') ? this._content(this._source || this) : this._content;
 
-		if (typeof this._content === 'string') {
-			node.innerHTML = this._content;
+		if (typeof content === 'string') {
+			node.innerHTML = content;
 		} else {
 			while (node.hasChildNodes()) {
 				node.removeChild(node.firstChild);
 			}
-			node.appendChild(this._content);
+			node.appendChild(content);
 		}
 		this.fire('contentupdate');
 	},
@@ -240,7 +264,7 @@ L.Popup = L.Layer.extend({
 	},
 
 	_adjustPan: function () {
-		if (!this.options.autoPan) { return; }
+		if (!this.options.autoPan || (this._map._panAnim && this._map._panAnim._inProgress)) { return; }
 
 		var map = this._map,
 		    containerHeight = this._container.offsetHeight,
@@ -293,9 +317,7 @@ L.popup = function (options, source) {
 L.Map.include({
 	openPopup: function (popup, latlng, options) { // (Popup) or (String || HTMLElement, LatLng[, Object])
 		if (!(popup instanceof L.Popup)) {
-			var content = popup;
-
-			popup = new L.Popup(options).setContent(content);
+			popup = new L.Popup(options).setContent(popup);
 		}
 
 		if (latlng) {
@@ -306,7 +328,10 @@ L.Map.include({
 			return this;
 		}
 
-		this.closePopup();
+		if (this._popup && this._popup.options.autoClose) {
+			this.closePopup();
+		}
+
 		this._popup = popup;
 		return this.addLayer(popup);
 	},
